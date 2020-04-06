@@ -3,3 +3,7 @@ notes
 experiment_data
 *vscode*
 .idea
+*.pkl
+*.tar.so
+*.txt
+*.tar

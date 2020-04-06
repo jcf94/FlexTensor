@@ -4,8 +4,10 @@ from flextensor.nn import conv2d_nchw, gemm as op_gemm, conv1d as op_conv1d, con
     gemm_conv2d_nchw, gemv as op_gemv, bilinear as op_bilinear, MTTKRP3d, conv_transpose1d as op_conv_transpose1d, \
     conv_transpose2d_nchw, conv_transpose3d_ncdhw, depthwise_conv2d_nchw, block_circulant_matrix as op_block_circulant_matrix, \
     PixelCNN as op_pixel_cnn, GatedPixelCNN as op_gated_pixel_cnn, MaxUnpooling1d as op_maxunpool1d, MaxUnpooling2d as op_maxunpool2d, \
-    ShiftConv2d_nhwc as op_shift_conv2d, conv2d_nchwc
+    ShiftConv2d_nhwc as op_shift_conv2d, conv2d_nchwc, \
+    conv2d_bn_relu as op_conv2d_bn_relu
 
+from flextensor.configs.conv2d_bn_relu_config import conv2d_bn_relu_shapes
 from flextensor.configs.conv1d_config import conv1d_shapes
 from flextensor.configs.conv2d_config import yolo_shapes, res_shapes, google_shapes, squeeze_shapes, \
     vgg_16_shapes, test_conv_shapes, yolo_shapes_b8, mobilev2_shapes, overfeat_shapes
@@ -210,6 +212,36 @@ def gatedpixelcnn(N, H, W, C, OutC, kernel_size, ClassVector=None, bias=None, st
 
 # register_task(Task("conv2d", "1x1-packed", conv2d_1x1_packed, (256, 256, 14, 14, 512, 1), "cuda", 0))
 
+def conv2d_bn_relu(N, H, W, CI, CO, kernel_size, strides, padding, dilation):
+    data = tvm.placeholder((N, CI, H, W), name='data')
+    kernel = tvm.placeholder((CO, CI, kernel_size, kernel_size), name='kernel')
+    bias = tvm.placeholder((CO, 1, 1), name='bias')
+    bn_scale = tvm.placeholder((CO, 1, 1), name='bn_scale')
+    bn_offset = tvm.placeholder((CO, 1, 1), name='bn_offset')
+    data, kernel, bias, bn_offset, bn_scale, out = op_conv2d_bn_relu(data, kernel,
+            bias, bn_scale, bn_offset, N, H, W, CI, CO, kernel_size, strides, padding, dilation)
+    return [out.op], [data, kernel, bias, bn_scale, bn_offset, out]
+
+for shape in conv2d_bn_relu_shapes:
+    N, H, W, CI, CO, kernel_size, strides, padding, dilation = shape
+    register_task(
+        Task(
+            "conv2d_bn_relu",
+            "conv2d_bn_relu",
+            conv2d_bn_relu,
+            (N, H, W, CI, CO, kernel_size, strides, padding, dilation),
+            "llvm",
+            0
+        ))
+    register_task(
+        Task(
+            "conv2d_bn_relu",
+            "conv2d_bn_relu",
+            conv2d_bn_relu,
+            (N, H, W, CI, CO, kernel_size, strides, padding, dilation),
+            "cuda",
+            0
+        ))
 
 for shape in conv1d_shapes:
     batch, in_channel, length, out_channel, _, k_len, _, stride, padding, dilation, groups = shape

@@ -1719,3 +1719,22 @@ def GatedPixelCNN(Input, KernelV, KernelV2H, KernelH, KernelHOut, ClassVector=No
                          lambda b, h, w, o : ConvGateH[b, h, w, o] + Input[b, h, w, o], 
                          name='Output')
     return GateV, Output
+
+def conv2d_bn_relu(data, kernel, bias, bn_scale, bn_offset,
+        N, H, W, CI, CO, kernel_size, strides, padding, dilation):
+    OH = (H + 2 * padding - (kernel_size - 1) * dilation - 1) // strides + 1
+    OW = (W + 2 * padding - (kernel_size - 1) * dilation - 1) // strides + 1
+
+    conv = topi.nn.conv2d_nchw(data, kernel, strides, padding, dilation)
+    conv = tvm.compute((N, CO, OH, OW),
+                       lambda i, j, k, l: conv[i, j, k, l] * bias[j, 0, 0],
+                       name='bias_add')
+    conv = tvm.compute((N, CO, OH, OW),
+                       lambda i, j, k, l: conv[i, j, k, l] * bn_scale[j, 0, 0],
+                       name='bn_add')
+    conv = tvm.compute((N, CO, OH, OW),
+                       lambda i, j, k, l: conv[i, j, k, l] + bn_offset[j, 0, 0],
+                       name='bn_mul')
+    out = topi.nn.relu(conv)
+
+    return [data, kernel, bias, bn_offset, bn_scale, out]
