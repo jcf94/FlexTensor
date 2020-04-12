@@ -12,7 +12,7 @@ from flextensor.task import Task, TASK_TABLE
 from flextensor.scheduler import schedule, schedule_with_config
 from flextensor.measure import _evaluate
 from flextensor.utils import to_tuple
-from flextensor.configs.conv2d_bn_relu_config import conv2d_bn_relu_shapes
+from flextensor.configs.transpose_batch_matmul_config import transpose_batch_matmul_shapes
 
 
 LOCAL_RPC = False
@@ -80,14 +80,14 @@ def optimize(shapes, slevel=4, rlevel=3, target="llvm", dev_id=0, timeout=4.0, t
         method="searching", use_model=False, rpc_info=None, logfile=sys.stdout, force_inline=False):
     ret = dict()
     for i, shape in enumerate(shapes):
-        print("Optimize conv2d_bn_relu shape %s [%.6f]" % (str(shape), time.time()), flush=True)
-        N, H, W, CI, CO, kernel_size, strides, padding, dilation = shape
+        print("Optimize transpose_batch_matmul shape %s [%.6f]" % (str(shape), time.time()), flush=True)
+        B, N, M, K = shape
         # create an empty task but has the correct key we want
         task = Task(
-            "conv2d_bn_relu",
-            "conv2d_bn_relu", 
+            "transpose_batch_matmul",
+            "transpose_batch_matmul", 
             None, 
-            (N, H, W, CI, CO, kernel_size, strides, padding, dilation), 
+            (B, N, M, K), 
             target, 
             dev_id
             )
@@ -160,7 +160,7 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=9090)
     parser.add_argument("--force_inline", action="store_true")
     args = parser.parse_args()
-    shapes = conv2d_bn_relu_shapes
+    shapes = transpose_batch_matmul_shapes
     rpc_info = RpcInfo(args.host, args.port, args.target_host)
     if args.to < 0:
         end = len(shapes)

@@ -1738,3 +1738,10 @@ def conv2d_bn_relu(data, kernel, bias, bn_scale, bn_offset,
     out = topi.nn.relu(conv)
 
     return [data, kernel, bias, bn_offset, bn_scale, out]
+
+def transpose_batch_matmul(X, Y, B, N, M, K):
+    Y_t = tvm.compute((B, K, M),
+                      lambda b, i, j: Y[b, j, i], name="Y_transpose")
+    k = tvm.reduce_axis((0, K), name='k')
+    Z = tvm.compute((B, N, M), lambda b, i, j: tvm.sum(X[b][i][k] * Y_t[b][k][j], axis=[k]), name='C')
+    return [X, Y, Z]

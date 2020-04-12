@@ -5,9 +5,12 @@ from flextensor.nn import conv2d_nchw, gemm as op_gemm, conv1d as op_conv1d, con
     conv_transpose2d_nchw, conv_transpose3d_ncdhw, depthwise_conv2d_nchw, block_circulant_matrix as op_block_circulant_matrix, \
     PixelCNN as op_pixel_cnn, GatedPixelCNN as op_gated_pixel_cnn, MaxUnpooling1d as op_maxunpool1d, MaxUnpooling2d as op_maxunpool2d, \
     ShiftConv2d_nhwc as op_shift_conv2d, conv2d_nchwc, \
-    conv2d_bn_relu as op_conv2d_bn_relu
+    conv2d_bn_relu as op_conv2d_bn_relu, \
+    transpose_batch_matmul as op_transpose_batch_matmul
 
 from flextensor.configs.conv2d_bn_relu_config import conv2d_bn_relu_shapes
+from flextensor.configs.transpose_batch_matmul_config import transpose_batch_matmul_shapes
+
 from flextensor.configs.conv1d_config import conv1d_shapes
 from flextensor.configs.conv2d_config import yolo_shapes, res_shapes, google_shapes, squeeze_shapes, \
     vgg_16_shapes, test_conv_shapes, yolo_shapes_b8, mobilev2_shapes, overfeat_shapes
@@ -239,6 +242,33 @@ for shape in conv2d_bn_relu_shapes:
             "conv2d_bn_relu",
             conv2d_bn_relu,
             (N, H, W, CI, CO, kernel_size, strides, padding, dilation),
+            "cuda",
+            0
+        ))
+
+def transpose_batch_matmul(B, N, M, K):
+    X = tvm.placeholder((B, N, K), name='A')
+    Y = tvm.placeholder((B, M, K), name='B')
+    X, Y, Z = op_transpose_batch_matmul(X, Y, B, N, M, K)
+    return [Z.op], [X, Y, Z]
+
+for shape in transpose_batch_matmul_shapes:
+    B, N, M, K = shape
+    register_task(
+        Task(
+            "transpose_batch_matmul",
+            "transpose_batch_matmul",
+            transpose_batch_matmul,
+            (B, N, M, K),
+            "llvm",
+            0
+        ))
+    register_task(
+        Task(
+            "transpose_batch_matmul",
+            "transpose_batch_matmul",
+            transpose_batch_matmul,
+            (B, N, M, K),
             "cuda",
             0
         ))
