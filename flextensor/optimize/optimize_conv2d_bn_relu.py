@@ -135,9 +135,15 @@ def test(task_key, configs, dev_id=None, rpc_info=None):
     s, bufs = schedule_with_config(task_key, configs)
     dev_id = dev_id if dev_id is not None else task.dev_id
     # print(tvm.lower(s, bufs, simple_mode=True))
-    time_cost = evaluate(task_key, s, bufs, task.target, dev_id, 10, rpc_info)
-    print(task_key, "use", time_cost, "ms")
-    print()
+
+    # hack to improve the target
+    if task.target == 'llvm':
+        target = 'llvm -mcpu=core-avx512'
+    else:
+        target = task.target
+    time_cost = evaluate(task_key, s, bufs, target, dev_id, 10, rpc_info)
+
+    print(task_key, "use", "%.6f" % (time_cost / 1e3), "s")
 
 
 if __name__ == "__main__":
