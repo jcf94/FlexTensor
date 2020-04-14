@@ -79,15 +79,27 @@ def build_func(func_name, task_key, configs, op_pos=None, rpc_info=None, rewrite
     else:
         target_host = None
     task = TASK_TABLE[task_key]
-    s, bufs = schedule_with_config(task_key, configs, op_pos=op_pos, rewrite=rewrite)
+    try:
+        s, bufs = schedule_with_config(task_key, configs, op_pos=op_pos, rewrite=rewrite)
+    except:
+        pass
+        #import traceback
+        #print(str(traceback.format_exc()))
     stmt = tvm.lower(s, bufs, simple_mode=True)
     valid = verify_code(stmt, task.target, task.dev_id)
     if not valid:
         raise RuntimeError("Invalid %s(%d) kernel"%(task.target, task.dev_id))
-    if target_host is not None:
-        func = tvm.build(s, bufs, target=task.target, target_host=target_host)
+
+    # hack to improve the target
+    if task.target == 'llvm':
+        target = 'llvm -mcpu=core-avx512'
     else:
-        func = tvm.build(s, bufs, target=task.target)
+        target = task.target
+
+    if target_host is not None:
+        func = tvm.build(s, bufs, target=target, target_host=target_host)
+    else:
+        func = tvm.build(s, bufs, target=target)
     func.export_library(os.path.join(LIB_DIR, func_name))
     result = ([to_tuple(x.shape) for x in bufs], [buf.dtype for buf in bufs])
     return result
@@ -1789,8 +1801,8 @@ class OpScheduler(Scheduler):
                     splited_reduced_axes.append([axis])
 
             # for easy align
-            reduce_split_num_parts = len(splited_reduced_axes[0])
-            assert reduce_split_num_parts == spatial_split_num_parts
+            #reduce_split_num_parts = len(splited_reduced_axes[0])
+            #assert reduce_split_num_parts == spatial_split_num_parts
 
             # reorder hybrid for spatial and reduce
             hybrid_axes = splited_spatial_axes + splited_reduced_axes
