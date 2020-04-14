@@ -6,10 +6,13 @@ from flextensor.nn import conv2d_nchw, gemm as op_gemm, conv1d as op_conv1d, con
     PixelCNN as op_pixel_cnn, GatedPixelCNN as op_gated_pixel_cnn, MaxUnpooling1d as op_maxunpool1d, MaxUnpooling2d as op_maxunpool2d, \
     ShiftConv2d_nhwc as op_shift_conv2d, conv2d_nchwc, \
     conv2d_bn_relu as op_conv2d_bn_relu, \
-    transpose_batch_matmul as op_transpose_batch_matmul
+    transpose_batch_matmul as op_transpose_batch_matmul, \
+    softmax as op_softmax, batch_norm as op_batch_norm
 
 from flextensor.configs.conv2d_bn_relu_config import conv2d_bn_relu_shapes
 from flextensor.configs.transpose_batch_matmul_config import transpose_batch_matmul_shapes
+from flextensor.configs.softmax_config import softmax_shapes
+from flextensor.configs.batch_norm_config import batch_norm_shapes
 
 from flextensor.configs.conv1d_config import conv1d_shapes
 from flextensor.configs.conv2d_config import yolo_shapes, res_shapes, google_shapes, squeeze_shapes, \
@@ -269,6 +272,61 @@ for shape in transpose_batch_matmul_shapes:
             "transpose_batch_matmul",
             transpose_batch_matmul,
             (B, N, M, K),
+            "cuda",
+            0
+        ))
+
+def softmax(M, N):
+    A = tvm.placeholder((M, N), name='A')
+    A, B = op_softmax(A)
+
+    return [B.op], [A, B]
+
+for shape in softmax_shapes:
+    M, N = shape
+    register_task(
+        Task(
+            "softmax",
+            "softmax",
+            softmax,
+            (M, N),
+            "llvm",
+            0
+        ))
+    register_task(
+        Task(
+            "softmax",
+            "softmax",
+            softmax,
+            (M, N),
+            "cuda",
+            0
+        ))
+
+
+def batch_norm(M, N, eps=1e-5):
+    A = tvm.placeholder((M, N), name='A')
+    A, B = op_batch_norm(A, eps)
+
+    return [B.op], [A, B]
+
+for shape in batch_norm_shapes:
+    M, N = shape
+    register_task(
+        Task(
+            "batch_norm",
+            "batch_norm",
+            batch_norm,
+            (M, N),
+            "llvm",
+            0
+        ))
+    register_task(
+        Task(
+            "batch_norm",
+            "batch_norm",
+            batch_norm,
+            (M, N),
             "cuda",
             0
         ))
