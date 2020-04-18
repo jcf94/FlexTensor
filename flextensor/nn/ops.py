@@ -1745,3 +1745,19 @@ def transpose_batch_matmul(X, Y, B, N, M, K):
     k = tvm.reduce_axis((0, K), name='k')
     Z = tvm.compute((B, N, M), lambda b, i, j: tvm.sum(X[b][i][k] * Y_t[b][k][j], axis=[k]), name='C')
     return [X, Y, Z]
+
+def softmax(A):
+    B = topi.nn.softmax(A, axis=1)
+
+    return [A, B]
+
+def batch_norm(A, eps=1e-5):
+    k1 = tvm.reduce_axis((0, M), name='k1')
+    k2 = tvm.reduce_axis((0, M), name='k2')
+    mean = tvm.compute((N,), lambda j: tvm.sum(A[k1][j] / M, axis=k1), name="mean")
+    var = tvm.compute((N,),
+                      lambda j: tvm.sum((A[k2][j] - mean[j]) * (A[k2][j] - mean[j]) / (M - 1), k2),
+                      name="var")
+    B = tvm.compute((M, N), lambda i, j: (A[i][j] - mean[j]) / tvm.sqrt(var[j] + eps), name='B')
+
+    return [A, B]

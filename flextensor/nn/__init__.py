@@ -4,7 +4,7 @@ from .ops import (conv1d, conv_transpose1d, conv2d_nchw, conv_transpose2d_nchw,
                 bilinear, MTTKRP3d, pointwise_multiply, mean, variance, 
                 batch_normalization2d, block_circulant_matrix, MaxUnpooling1d,
                 MaxUnpooling2d, ShiftConv2d_nhwc, PixelCNN, GatedPixelCNN, conv2d_nchwc,
-                conv2d_bn_relu, transpose_batch_matmul)
+                conv2d_bn_relu, transpose_batch_matmul, softmax, batch_norm)
 from .layers import (YoloConvLayer1, YoloConvLayer2, YoloConvLayer3, YoloConvLayer4,
                 YoloConvLayer5, YoloConvLayer6, YoloConvLayer7, YoloConvLayer8,
                 YoloConvLayer9, YoloConvLayer10, YoloConvLayer11, YoloConvLayer12,
