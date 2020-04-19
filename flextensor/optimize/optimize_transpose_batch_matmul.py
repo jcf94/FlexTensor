@@ -56,7 +56,7 @@ def evaluate(name, s, bufs, target, dev_id, number, rpc_info):
             func.export_library(os.path.join(LIB_DIR, func_file))
             remote.upload(os.path.join(LIB_DIR, func_file))
             func = remote.load_module(func_file)
-        evaluator = func.time_evaluator(func.entry_name, ctx, number=number, min_repeat_ms=1)
+        evaluator = func.time_evaluator(func.entry_name, ctx, number=number, min_repeat_ms=1000)
         time_cost = evaluator(*tvm_arys).mean * 1e3
     except Exception as e:
         print(e)

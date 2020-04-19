@@ -377,7 +377,7 @@ class Scheduler(object):
                 print("Early stop after continuous no trials %d times" % (count_incessant_empty_trial))
                 break
             # early stop because of repeating value
-            if math.fabs(cur_best_value - value_early_stop) < 0.02:
+            if math.fabs(cur_best_value - value_early_stop) < 0.001:
                 early_stop_count += 1
             else:
                 value_early_stop = cur_best_value
@@ -437,8 +437,12 @@ class Scheduler(object):
         if use_model:
             self.walker_group.load_or_create_model()
         # warm up
-        warm_up_epoches = 10
-        warm_up_trials = 20
+        if os.environ.get('FLEXTENSOR_DEBUG', 'false').lower() == 'true':
+            warm_up_epoches = 1
+            warm_up_trials = 10
+        else:
+            warm_up_epoches = 10
+            warm_up_trials = 20
         self._warm_up(warm_up_epoches, warm_up_trials, configs, type_keys, use_model=use_model)
 
         # record best
@@ -475,7 +479,7 @@ class Scheduler(object):
                 best = self.walker_group.top1()
             print("No. %d | [%.6f] The best currently %.6f" % (trial, time.time(), best_value), best)
             # early stop
-            if math.fabs(best_value - value_early_stop) < 0.02:
+            if math.fabs(best_value - value_early_stop) < 0.001:
                 early_stop_count += 1
             else:
                 value_early_stop = best_value
