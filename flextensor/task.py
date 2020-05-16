@@ -219,11 +219,11 @@ def gatedpixelcnn(N, H, W, C, OutC, kernel_size, ClassVector=None, bias=None, st
 # register_task(Task("conv2d", "1x1-packed", conv2d_1x1_packed, (256, 256, 14, 14, 512, 1), "cuda", 0))
 
 def conv2d_bn_relu(N, H, W, CI, CO, kernel_size, strides, padding, dilation):
-    data = tvm.placeholder((N, CI, H, W), name='data')
-    kernel = tvm.placeholder((CO, CI, kernel_size, kernel_size), name='kernel')
-    bias = tvm.placeholder((CO, 1, 1), name='bias')
-    bn_scale = tvm.placeholder((CO, 1, 1), name='bn_scale')
-    bn_offset = tvm.placeholder((CO, 1, 1), name='bn_offset')
+    data = tvm.placeholder((N, H, W, CI), name='data')
+    kernel = tvm.placeholder((kernel_size, kernel_size, CI, CO), name='kernel')
+    bias = tvm.placeholder((CO,), name='bias')
+    bn_scale = tvm.placeholder((CO,), name='bn_scale')
+    bn_offset = tvm.placeholder((CO,), name='bn_offset')
     data, kernel, bias, bn_offset, bn_scale, out = op_conv2d_bn_relu(data, kernel,
             bias, bn_scale, bn_offset, N, H, W, CI, CO, kernel_size, strides, padding, dilation)
     return [out.op], [data, kernel, bias, bn_scale, bn_offset, out]
