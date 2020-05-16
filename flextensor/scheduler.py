@@ -437,9 +437,9 @@ class Scheduler(object):
         if use_model:
             self.walker_group.load_or_create_model()
         # warm up
-        if os.environ.get('FLEXTENSOR_DEBUG', 'false').lower() == 'true':
-            warm_up_epoches = 1
-            warm_up_trials = 10
+        if os.environ.get('FLEXTENSOR_FAST_WARMUP', 'false').lower() == 'true':
+            warm_up_epoches = 2
+            warm_up_trials = 20
         else:
             warm_up_epoches = 10
             warm_up_trials = 20
@@ -2084,6 +2084,13 @@ def schedule(task_key, slevel=4, rlevel=3, op_trial=50, graph_trial=10, op_stop=
             raise RuntimeError("Currently no support for target %s"%task.target)
         total_size *= len(space)
         print("op", pos, "space size:", len(space))
+        old_env_value = None
+        if len(op.reduce_axis) == 0:
+            old_env_value = os.environ.get("FLEXTENSOR_FAST_WARMUP", "false")
+            print("Use fast strategy for ", op)
+            os.environ['FLEXTENSOR_FAST_WARMUP'] = 'true'
+            force_trials[pos] = 1
+
         op_space_lst.append(space)
         op_scheduler = OpScheduler(
             task_key, 
@@ -2097,6 +2104,7 @@ def schedule(task_key, slevel=4, rlevel=3, op_trial=50, graph_trial=10, op_stop=
             rpc_info=rpc_info,
             rewrite=rewrite
             )
+
         # print("###########################################")
         # print("Scheduling", op)
         use_model = False if op_perf_model_path_lst[pos] is None else True
@@ -2111,6 +2119,9 @@ def schedule(task_key, slevel=4, rlevel=3, op_trial=50, graph_trial=10, op_stop=
                 perf_path=perf_path,
                 )
         configs.op_config_lst.append(op_config)
+
+        if old_env_value:
+            os.environ["FLEXTENSOR_FAST_WARMUP"] = old_env_value
     
     print("space size", total_size)
 
