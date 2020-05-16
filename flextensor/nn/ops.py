@@ -1739,12 +1739,14 @@ def conv2d_bn_relu(data, kernel, bias, bn_scale, bn_offset,
 
     return [data, kernel, bias, bn_offset, bn_scale, out]
 
-def transpose_batch_matmul(X, Y, B, N, M, K):
-    Y_t = tvm.compute((B, K, M),
-                      lambda b, i, j: Y[b, j, i], name="Y_transpose")
-    k = tvm.reduce_axis((0, K), name='k')
-    Z = tvm.compute((B, N, M), lambda b, i, j: tvm.sum(X[b][i][k] * Y_t[b][k][j], axis=[k]), name='C')
-    return [X, Y, Z]
+def transpose_batch_matmul(query, value, batch, seq_len, n_head, n_dim):
+    query_T = tvm.compute((batch, n_head, seq_len, n_dim),
+                      lambda b, h, l, d: query[b, l, h, d], name="query_T")
+    value_T = tvm.compute((batch, n_head, n_dim, seq_len),
+                      lambda b, h, d, l: value[b, l, h, d], name="value_T")
+    k = tvm.reduce_axis((0, n_dim), name='k')
+    output = tvm.compute((batch, n_head, seq_len, seq_len), lambda b, h, i, j: tvm.sum(query_T[b][h][i][k] * value_T[b][h][k][j], axis=[k]), name='C')
+    return [query, value, output]
 
 def softmax(A):
     B = topi.nn.softmax(A, axis=1)

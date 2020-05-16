@@ -92,7 +92,7 @@ def build_func(func_name, task_key, configs, op_pos=None, rpc_info=None, rewrite
 
     # hack to improve the target
     if task.target == 'llvm':
-        target = 'llvm -mcpu=core-avx512'
+        target = target_host = 'llvm -mcpu=core-avx2'
     else:
         target = task.target
 

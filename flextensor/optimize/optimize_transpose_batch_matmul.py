@@ -49,7 +49,8 @@ def evaluate(name, s, bufs, target, dev_id, number, rpc_info):
     try:
         func_file = "{}.tar".format(name)
         if rpc_info is not None and rpc_info.target_host is not None:
-            func = tvm.build(s, bufs, target=target, target_host=rpc_info.target_host)
+            target_host = 'llvm -mcpu=core-avx2'
+            func = tvm.build(s, bufs, target=target, target_host=target_host)
         else:
             func = tvm.build(s, bufs, target=target)
         if use_rpc:
@@ -99,7 +100,7 @@ def optimize(shapes, slevel=4, rlevel=3, target="llvm", dev_id=0, timeout=4.0, t
             rlevel=rlevel,
             op_trial=trials, 
             timeout=timeout, 
-            op_stop=30, 
+            op_stop=200, 
             method=method, 
             use_model=use_model,
             parallel=parallel,
@@ -138,11 +139,7 @@ def test(task_key, configs, dev_id=None, rpc_info=None):
     # print(tvm.lower(s, bufs, simple_mode=True))
 
     # hack to improve the target
-    if task.target == 'llvm':
-        target = 'llvm -mcpu=core-avx512'
-    else:
-        target = task.target
-    time_cost = evaluate(task_key, s, bufs, target, dev_id, 10, rpc_info)
+    time_cost = evaluate(task_key, s, bufs, task.target, dev_id, 10, rpc_info)
 
     print(task_key, "use", "%.6f" % (time_cost / 1e3), "s")
 

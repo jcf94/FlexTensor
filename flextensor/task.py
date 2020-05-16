@@ -249,11 +249,11 @@ for shape in conv2d_bn_relu_shapes:
             0
         ))
 
-def transpose_batch_matmul(B, N, M, K):
-    X = tvm.placeholder((B, N, K), name='A')
-    Y = tvm.placeholder((B, M, K), name='B')
-    X, Y, Z = op_transpose_batch_matmul(X, Y, B, N, M, K)
-    return [Z.op], [X, Y, Z]
+def transpose_batch_matmul(batch, seq_len, n_head, n_dim):
+    query = tvm.placeholder((batch, seq_len, n_head, n_dim), name='query')
+    value = tvm.placeholder((batch, seq_len, n_head, n_dim), name='value')
+    query, value, output = op_transpose_batch_matmul(query, value, batch, seq_len, n_head, n_dim)
+    return [output.op], [query, value, output]
 
 for shape in transpose_batch_matmul_shapes:
     B, N, M, K = shape
