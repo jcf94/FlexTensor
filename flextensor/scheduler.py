@@ -79,15 +79,27 @@ def build_func(func_name, task_key, configs, op_pos=None, rpc_info=None, rewrite
     else:
         target_host = None
     task = TASK_TABLE[task_key]
-    s, bufs = schedule_with_config(task_key, configs, op_pos=op_pos, rewrite=rewrite)
+    try:
+        s, bufs = schedule_with_config(task_key, configs, op_pos=op_pos, rewrite=rewrite)
+    except:
+        pass
+        #import traceback
+        #print(str(traceback.format_exc()))
     stmt = tvm.lower(s, bufs, simple_mode=True)
     valid = verify_code(stmt, task.target, task.dev_id)
     if not valid:
         raise RuntimeError("Invalid %s(%d) kernel"%(task.target, task.dev_id))
-    if target_host is not None:
-        func = tvm.build(s, bufs, target=task.target, target_host=target_host)
+
+    # hack to improve the target
+    if task.target == 'llvm':
+        target = target_host = 'llvm -mcpu=core-avx2'
     else:
-        func = tvm.build(s, bufs, target=task.target)
+        target = task.target
+
+    if target_host is not None:
+        func = tvm.build(s, bufs, target=target, target_host=target_host)
+    else:
+        func = tvm.build(s, bufs, target=target)
     func.export_library(os.path.join(LIB_DIR, func_name))
     result = ([to_tuple(x.shape) for x in bufs], [buf.dtype for buf in bufs])
     return result
@@ -365,7 +377,7 @@ class Scheduler(object):
                 print("Early stop after continuous no trials %d times" % (count_incessant_empty_trial))
                 break
             # early stop because of repeating value
-            if math.fabs(cur_best_value - value_early_stop) < 0.02:
+            if math.fabs(cur_best_value - value_early_stop) < 0.002:
                 early_stop_count += 1
             else:
                 value_early_stop = cur_best_value
@@ -425,8 +437,12 @@ class Scheduler(object):
         if use_model:
             self.walker_group.load_or_create_model()
         # warm up
-        warm_up_epoches = 10
-        warm_up_trials = 20
+        if os.environ.get('FLEXTENSOR_FAST_WARMUP', 'false').lower() == 'true':
+            warm_up_epoches = 2
+            warm_up_trials = 20
+        else:
+            warm_up_epoches = 10
+            warm_up_trials = 20	
         self._warm_up(warm_up_epoches, warm_up_trials, configs, type_keys, use_model=use_model)
 
         # record best
@@ -463,7 +479,7 @@ class Scheduler(object):
                 best = self.walker_group.top1()
             print("No. %d | [%.6f] The best currently %.6f" % (trial, time.time(), best_value), best)
             # early stop
-            if math.fabs(best_value - value_early_stop) < 0.02:
+            if math.fabs(best_value - value_early_stop) < 0.002:
                 early_stop_count += 1
             else:
                 value_early_stop = best_value
@@ -1789,8 +1805,8 @@ class OpScheduler(Scheduler):
                     splited_reduced_axes.append([axis])
 
             # for easy align
-            reduce_split_num_parts = len(splited_reduced_axes[0])
-            assert reduce_split_num_parts == spatial_split_num_parts
+            # reduce_split_num_parts = len(splited_reduced_axes[0])
+            # assert reduce_split_num_parts == spatial_split_num_parts
 
             # reorder hybrid for spatial and reduce
             hybrid_axes = splited_spatial_axes + splited_reduced_axes
@@ -2073,6 +2089,15 @@ def schedule(task_key, slevel=4, rlevel=3, op_trial=50, graph_trial=10, op_stop=
             raise RuntimeError("Currently no support for target %s"%task.target)
         total_size *= len(space)
         print("op", pos, "space size:", len(space))
+
+        # fast strategy for non-reduce op
+        old_env_value = None
+        if len(op.reduce_axis) == 0:
+            old_env_value = os.environ.get("FLEXTENSOR_FAST_WARMUP", "false")
+            print("Use fast strategy for ", op)
+            os.environ['FLEXTENSOR_FAST_WARMUP'] = 'true'
+            force_trials[pos] = 1
+
         op_space_lst.append(space)
         op_scheduler = OpScheduler(
             task_key, 
