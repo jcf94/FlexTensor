@@ -6,6 +6,7 @@ Follow the convention of PyTorch.
 **Author**: `Size Zheng`
 """
 import tvm 
+from tvm import te
 import topi
 from flextensor.utils import test_allclose, assert_print
 
@@ -1719,3 +1720,34 @@ def GatedPixelCNN(Input, KernelV, KernelV2H, KernelH, KernelHOut, ClassVector=No
                          lambda b, h, w, o : ConvGateH[b, h, w, o] + Input[b, h, w, o], 
                          name='Output')
     return GateV, Output
+
+def conv2d_bn_relu(data, kernel, bias, bn_scale, bn_offset,
+        N, H, W, CI, CO, kernel_size, strides, padding, dilation):
+    OH = (H + 2 * padding - (kernel_size - 1) * dilation - 1) // strides + 1
+    OW = (W + 2 * padding - (kernel_size - 1) * dilation - 1) // strides + 1
+
+    conv = topi.nn.conv2d_nhwc(data, kernel, strides, padding, dilation)
+    conv = te.compute((N, OH, OW, CO),
+                       lambda i, j, k, l: conv[i, j, k, l] + bias[l],
+                       name='bias_add')
+    conv = te.compute((N, OH, OW, CO),
+                       lambda i, j, k, l: conv[i, j, k, l] * bn_scale[l],
+                       name='bn_add')
+    conv = te.compute((N, OH, OW, CO),
+                       lambda i, j, k, l: conv[i, j, k, l] + bn_offset[l],
+                       name='bn_mul')
+    out = topi.nn.relu(conv)
+
+    return [data, kernel, bias, bn_offset, bn_scale, out]
+
+def transpose_batch_matmul(query, value, batch, seq_len, n_head, n_dim):
+    query_T = te.compute((batch, n_head, seq_len, n_dim),
+                      lambda b, h, l, d: query[b, l, h, d], name="query_T")
+    value_T = te.compute((batch, n_head, n_dim, seq_len),
+                      lambda b, h, d, l: value[b, l, h, d], name="value_T")
+    k = te.reduce_axis((0, n_dim), name='k')
+    out = te.compute((batch, n_head, seq_len, seq_len),
+                 lambda b, h, i, j: te.sum(query_T[b][h][i][k] * value_T[b][h][k][j], axis=[k]),
+                 name='C')
+    return [query, value, out]
+

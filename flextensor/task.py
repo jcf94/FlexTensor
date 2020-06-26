@@ -1,10 +1,11 @@
 import tvm 
+from tvm import te
 
 from flextensor.nn import conv2d_nchw, gemm as op_gemm, conv1d as op_conv1d, conv3d_ncdhw, \
     gemm_conv2d_nchw, gemv as op_gemv, bilinear as op_bilinear, MTTKRP3d, conv_transpose1d as op_conv_transpose1d, \
     conv_transpose2d_nchw, conv_transpose3d_ncdhw, depthwise_conv2d_nchw, block_circulant_matrix as op_block_circulant_matrix, \
     PixelCNN as op_pixel_cnn, GatedPixelCNN as op_gated_pixel_cnn, MaxUnpooling1d as op_maxunpool1d, MaxUnpooling2d as op_maxunpool2d, \
-    ShiftConv2d_nhwc as op_shift_conv2d, conv2d_nchwc
+    ShiftConv2d_nhwc as op_shift_conv2d, conv2d_nchwc, conv2d_bn_relu as op_conv2d_bn_relu, transpose_batch_matmul as op_transpose_batch_matmul
 
 from flextensor.configs.conv1d_config import conv1d_shapes
 from flextensor.configs.conv2d_config import yolo_shapes, res_shapes, google_shapes, squeeze_shapes, \
@@ -23,6 +24,9 @@ from flextensor.configs.maxunpooling2d_config import maxunpooling2d_shape
 from flextensor.configs.PixelCNN_config import PixelCNN_shape
 from flextensor.configs.gated_pixelcnn_config import gated_pixelcnn_shape
 from flextensor.configs.shift_conv2d_config import shift_conv2d_shape
+
+from flextensor.configs.conv2d_bn_relu_config import conv2d_bn_relu_shapes
+from flextensor.configs.transpose_batch_matmul_config import transpose_batch_matmul_shapes
 
 from flextensor.space import EnumSpace
 
@@ -461,6 +465,64 @@ for shape in conv3d_shapes:
                 j
                 ))
 
+def conv2d_bn_relu(N, H, W, CI, CO, kernel_size, strides, padding, dilation):
+    data = te.placeholder((N, H, W, CI), name='data')
+    kernel = te.placeholder((kernel_size, kernel_size, CI, CO), name='kernel')
+    bias = te.placeholder((CO,), name='bias')
+    bn_scale = te.placeholder((CO,), name='bn_scale')
+    bn_offset = te.placeholder((CO,), name='bn_offset')
+    data, kernel, bias, bn_offset, bn_scale, out = op_conv2d_bn_relu(data, kernel,
+            bias, bn_scale, bn_offset, N, H, W, CI, CO, kernel_size, strides, padding, dilation)
+    return [out.op], [data, kernel, bias, bn_scale, bn_offset, out]
+
+for shape in conv2d_bn_relu_shapes:
+    N, H, W, CI, CO, kernel_size, strides, padding, dilation = shape
+    register_task(
+        Task(
+            "conv2d_bn_relu",
+            "conv2d_bn_relu",
+            conv2d_bn_relu,
+            (N, H, W, CI, CO, kernel_size, strides, padding, dilation),
+            "llvm",
+            0
+        ))
+    register_task(
+        Task(
+            "conv2d_bn_relu",
+            "conv2d_bn_relu",
+            conv2d_bn_relu,
+            (N, H, W, CI, CO, kernel_size, strides, padding, dilation),
+            "cuda",
+            0
+        ))
+
+def transpose_batch_matmul(batch, seq_len, n_head, n_dim):
+    query = te.placeholder((batch, seq_len, n_head, n_dim), name='query')
+    value = te.placeholder((batch, seq_len, n_head, n_dim), name='value')
+    query, value, output = op_transpose_batch_matmul(query, value, batch, seq_len, n_head, n_dim)
+    return [output.op], [query, value, output]
+
+for shape in transpose_batch_matmul_shapes:
+    B, N, M, K = shape
+    register_task(
+        Task(
+            "transpose_batch_matmul",
+            "transpose_batch_matmul",
+            transpose_batch_matmul,
+            (B, N, M, K),
+            "llvm",
+            0
+        ))
+    register_task(
+        Task(
+            "transpose_batch_matmul",
+            "transpose_batch_matmul",
+            transpose_batch_matmul,
+            (B, N, M, K),
+            "cuda",
+            0
+        ))
+
 for shape in gemv_shapes:
     N, K, _ = shape
     for j in range(4):
@@ -522,3 +584,5 @@ for shape in shift_conv2d_shape:
     for j in range(4):
         register_task(Task("shift_conv2d", "shift_conv2d", shiftconv2d, shape, "llvm", j))
         register_task(Task("shift_conv2d", "shift_conv2d", shiftconv2d, shape, "cuda", j))
+
+
